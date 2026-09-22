@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snapfix Task Search</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      padding: 30px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: auto;
+    }
+
+    h1 {
+      margin-bottom: 5px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .card,
+    .loading {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
+      margin-bottom: 20px;
+    }
+
+    .token-section {
+      margin-bottom: 18px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .token-label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #111827;
+    }
+
+    .token-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .token-input {
+      flex: 1;
+      min-width: 280px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .token-status {
+      font-size: 13px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .token-saved {
+      color: #166534;
+    }
+
+    .token-missing {
+      color: #991b1b;
+    }
+
+    .token-note {
+      margin-top: 8px;
+      color: #6b7280;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    textarea {
+      width: 100%;
+      height: 180px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 12px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+
+    button {
+      margin-top: 12px;
+      background: #111827;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 20px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:hover {
+      opacity: .92;
+    }
+
+    .token-btn {
+      background: #7c3aed;
+      margin-top: 0;
+    }
+
+    .clear-token-btn {
+      background: #6b7280;
+      margin-top: 0;
+    }
+
+    .photo-btn {
+      background: #2563eb;
+      margin-left: 10px;
+    }
+
+    .comment-btn {
+      background: #059669;
+      margin-left: 10px;
+    }
+
+    .small-btn {
+      padding: 7px 12px;
+      font-size: 12px;
+      margin-top: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
+    }
+
+    th {
+      background: #111827;
+      color: white;
+      padding: 12px;
+      text-align: left;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+
+    tbody tr:nth-child(odd) {
+      background: #f3f4f6;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #e5e7eb;
+    }
+
+    tbody tr:hover {
+      background: #dbeafe;
+    }
+
+    .badge {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      display: inline-block;
+    }
+
+    .red {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .amber {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .green {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .notfound {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .stats {
+      margin-bottom: 15px;
+      color: #555;
+      font-weight: bold;
+    }
+
+    .thumb {
+      width: 75px;
+      height: 75px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin: 4px;
+      border: 1px solid #ddd;
+    }
+
+    .photos {
+      min-width: 170px;
+    }
+
+    .comment {
+      max-width: 380px;
+      line-height: 1.4;
+      color: #333;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 15px;
+      }
+
+      .photo-btn,
+      .comment-btn {
+        margin-left: 0;
+      }
+
+      .token-row {
+        align-items: stretch;
+      }
+
+      .token-input {
+        min-width: 100%;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+
+      .comment {
+        white-space: normal;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+  <h1>Snapfix Task Search</h1>
+  <div class="subtitle">Search by task number, location, SN number, or text.</div>
+
+  <div class="card">
+    <div class="token-section">
+      <label class="token-label" for="bearerToken">Snapfix Bearer Token</label>
+
+      <div class="token-row">
+        <input
+          type="password"
+          id="bearerToken"
+          class="token-input"
+          placeholder="Paste Snapfix bearer token here"
+          autocomplete="off"
+        >
+
+        <button class="token-btn" onclick="saveBearerToken()">
+          Save Token
+        </button>
+
+        <button class="clear-token-btn" onclick="clearBearerToken()">
+          Clear Token
+        </button>
+
+        <span id="tokenStatus" class="token-status token-missing">
+          No token
+        </span>
+      </div>
+
+      <div class="token-note">
+        The token is stored only in this browser tab using sessionStorage. You can paste either the raw token or the full value beginning with “Bearer”.
+      </div>
+    </div>
+
+    <textarea id="taskSearch" placeholder="SN813&#10;90014062&#10;Bathroom leak"></textarea>
+
+    <button onclick="searchTasks()">Search Tasks</button>
+    <button class="photo-btn" onclick="loadPhotos()">Load Photos</button>
+    <button class="comment-btn" onclick="loadCommentsForVisibleRows()">Load Comments for Visible Rows</button>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+const PARENT_UUID = "33c9bb00-81bc-4313-9fe1-c2f0a68b2e7f";
+
+const CHAT_URL =
+  "https://z4.snapfix.com/v1/app/chat/list?limit=20&offset=1";
+
+const STATUSES = [
+  { color: "red", label: "New", css: "red" },
+  { color: "amber", label: "In Progress", css: "amber" },
+  { color: "green", label: "Completed", css: "green" }
+];
+
+let SNAPFIX_TOKEN = "";
+let displayedJobs = [];
+
+function normalizeToken(token) {
+  token = String(token || "").trim();
+
+  if (!token) return "";
+
+  if (!token.toLowerCase().startsWith("bearer ")) {
+    token = "Bearer " + token;
+  }
+
+  return token;
+}
+
+function saveBearerToken() {
+  const input = document.getElementById("bearerToken");
+  const token = normalizeToken(input.value);
+
+  if (!token) {
+    alert("Please enter a bearer token.");
+    return;
+  }
+
+  SNAPFIX_TOKEN = token;
+  sessionStorage.setItem("snapfixBearerToken", token);
+  input.value = "";
+  updateTokenStatus();
+}
+
+function clearBearerToken() {
+  SNAPFIX_TOKEN = "";
+  sessionStorage.removeItem("snapfixBearerToken");
+  document.getElementById("bearerToken").value = "";
+  updateTokenStatus();
+}
+
+function getBearerToken() {
+  if (SNAPFIX_TOKEN) {
+    return SNAPFIX_TOKEN;
+  }
+
+  const saved = sessionStorage.getItem("snapfixBearerToken");
+
+  if (saved) {
+    SNAPFIX_TOKEN = saved;
+  }
+
+  return SNAPFIX_TOKEN;
+}
+
+function getCommonHeaders() {
+  const token = getBearerToken();
+
+  if (!token) {
+    throw new Error(
+      "No bearer token entered. Paste your Snapfix token at the top of the page and click Save Token."
+    );
+  }
+
+  return {
+    "accept": "application/json, text/plain, */*",
+    "authorization": token,
+    "content-type": "application/json",
+    "parent-uuid": PARENT_UUID
+  };
+}
+
+function updateTokenStatus() {
+  const status = document.getElementById("tokenStatus");
+  const token = getBearerToken();
+
+  if (token) {
+    status.textContent = "✓ Token loaded";
+    status.className = "token-status token-saved";
+  } else {
+    status.textContent = "No token";
+    status.className = "token-status token-missing";
+  }
+}
+
+function handleExpiredToken() {
+  clearBearerToken();
+  alert("Your Snapfix bearer token is missing, expired, or no longer authorized. Please paste a new token.");
+}
+
+function getSearchValues() {
+  return document
+    .getElementById("taskSearch")
+    .value
+    .split(/[\n,]+/)
+    .map(x => x.trim())
+    .filter(Boolean);
+}
+
+function buildSearchUrl(limit = 100, offset = 1) {
+  return `https://z4.snapfix.com/v1/app/tasks/list-by-parent?parentUuid=${PARENT_UUID}&limit=${limit}&offset=${offset}&sortBy=lastActivity&orderBy=desc`;
+}
+
+async function searchByColor(searchText, status) {
+  const response = await fetch(buildSearchUrl(), {
+    method: "POST",
+    headers: getCommonHeaders(),
+    body: JSON.stringify({
+      searchText: String(searchText),
+      normalTasks: 1,
+      colors: [status.color]
+    })
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    handleExpiredToken();
+    throw new Error("Snapfix authorization failed. Please enter a new bearer token.");
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(response.status + " - " + errorText);
+  }
+
+  const data = await response.json();
+  const jobs = data?.data?.jobs || [];
+
+  return jobs.map(job => ({
+    job,
+    statusInfo: {
+      label: status.label,
+      css: status.css
+    }
+  }));
+}
+
+async function searchAllMatches(searchText) {
+  let allMatches = [];
+
+  for (const status of STATUSES) {
+    const matches = await searchByColor(searchText, status);
+    allMatches = allMatches.concat(matches);
+  }
+
+  return allMatches;
+}
+
+async function fetchChatItems(jobUuid) {
+  const response = await fetch(CHAT_URL, {
+    method: "POST",
+    headers: getCommonHeaders(),
+    body: JSON.stringify({
+      jobUuid: jobUuid,
+      chatItemTypes: []
+    })
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    handleExpiredToken();
+    return [];
+  }
+
+  if (!response.ok) {
+    console.error("Chat request failed:", response.status, await response.text());
+    return [];
+  }
+
+  const data = await response.json();
+  return data?.data?.items || [];
+}
+
+async function getLatestComment(jobUuid) {
+  try {
+    const items = await fetchChatItems(jobUuid);
+
+    const latest = items.find(item =>
+      item.text &&
+      item.text.trim() !== "" &&
+      item.user &&
+      item.user.name
+    );
+
+    if (!latest) return "-";
+
+    const cleanText = latest.text.replace(/<[^>]*>/g, "").trim();
+    return `${latest.user.name}: "${cleanText}"`;
+  } catch (error) {
+    console.error("Comment error:", error);
+    return "-";
+  }
+}
+
+function getPhotoUrls(items) {
+  return items
+    .filter(item => item.fileUrl)
+    .map(item => item.fileUrl);
+}
+
+function renderPhotoThumbnails(photoUrls) {
+  if (!photoUrls || photoUrls.length === 0) return "-";
+
+  return photoUrls.map((url, index) => `
+    <a href="${url}" target="_blank" rel="noopener noreferrer" title="Open Photo ${index + 1}">
+      <img class="thumb" src="${url}" alt="Photo ${index + 1}">
+    </a>
+  `).join("");
+}
+
+function clean(value) {
+  return value || "-";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatCreatedDate(timestamp) {
+  if (!timestamp) return "-";
+
+  const date = new Date(Number(timestamp));
+
+  if (isNaN(date.getTime())) return "-";
+
+  return date.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
+async function loadSinglePhoto(jobUuid) {
+  const cell = document.getElementById(`photos-${jobUuid}`);
+
+  if (!cell) return;
+
+  cell.innerHTML = "Loading...";
+
+  try {
+    const chatItems = await fetchChatItems(jobUuid);
+    const photoUrls = getPhotoUrls(chatItems);
+    cell.innerHTML = renderPhotoThumbnails(photoUrls);
+  } catch (error) {
+    console.error("Photo error:", error);
+    cell.innerHTML = "Error";
+  }
+}
+
+async function loadPhotos() {
+  if (displayedJobs.length === 0) {
+    alert("Search tasks first before loading photos.");
+    return;
+  }
+
+  if (!getBearerToken()) {
+    alert("Please enter and save your Snapfix bearer token first.");
+    return;
+  }
+
+  await Promise.all(
+    displayedJobs.map(job => loadSinglePhoto(job.uuid))
+  );
+}
+
+async function loadSingleComment(jobUuid) {
+  const cell = document.getElementById(`comment-${jobUuid}`);
+
+  if (!cell) return;
+
+  cell.innerHTML = "Loading...";
+  cell.textContent = await getLatestComment(jobUuid);
+}
+
+async function loadCommentsForVisibleRows() {
+  if (displayedJobs.length === 0) {
+    alert("Search tasks first before loading comments.");
+    return;
+  }
+
+  if (!getBearerToken()) {
+    alert("Please enter and save your Snapfix bearer token first.");
+    return;
+  }
+
+  const results = document.getElementById("results");
+  const progress = document.createElement("div");
+  progress.className = "loading";
+  results.prepend(progress);
+
+  for (let i = 0; i < displayedJobs.length; i++) {
+    progress.innerHTML = `Loading comments ${i + 1} of ${displayedJobs.length}...`;
+    await loadSingleComment(displayedJobs[i].uuid);
+  }
+
+  progress.remove();
+}
+
+async function searchTasks() {
+  const results = document.getElementById("results");
+  const searchValues = getSearchValues();
+
+  displayedJobs = [];
+
+  if (!getBearerToken()) {
+    alert("Please enter and save your Snapfix bearer token first.");
+    return;
+  }
+
+  if (searchValues.length === 0) {
+    alert("Please enter a search value.");
+    return;
+  }
+
+  results.innerHTML = `<div class="loading">Searching Snapfix...</div>`;
+
+  try {
+    let rows = "";
+    let totalFound = 0;
+    const seenJobUuids = new Set();
+
+    for (let i = 0; i < searchValues.length; i++) {
+      const searchValue = searchValues[i];
+
+      results.innerHTML =
+        `<div class="loading">Searching ${i + 1} of ${searchValues.length}: ${escapeHtml(searchValue)}</div>`;
+
+      const matches = await searchAllMatches(searchValue);
+
+      if (matches.length > 0) {
+        for (const item of matches) {
+          const match = item.job;
+          const statusInfo = item.statusInfo;
+
+          if (seenJobUuids.has(match.uuid)) {
+            continue;
+          }
+
+          seenJobUuids.add(match.uuid);
+          totalFound++;
+          displayedJobs.push(match);
+
+          rows += `
+            <tr>
+              <td>${escapeHtml(searchValue)}</td>
+              <td>${escapeHtml(formatCreatedDate(match.createdTs))}</td>
+              <td>${escapeHtml(clean(match.reference))}</td>
+              <td>${escapeHtml(clean(match.title))}</td>
+              <td>${escapeHtml(clean(match.largeTitle))}</td>
+              <td>${escapeHtml(clean(match.description))}</td>
+              <td><span class="badge ${statusInfo.css}">${escapeHtml(statusInfo.label)}</span></td>
+              <td class="photos" id="photos-${escapeHtml(match.uuid)}">
+                <button class="small-btn" onclick="loadSinglePhoto('${escapeHtml(match.uuid)}')">
+                  Load
+                </button>
+              </td>
+              <td class="comment" id="comment-${escapeHtml(match.uuid)}">Not loaded</td>
+            </tr>
+          `;
+        }
+      } else {
+        rows += `
+          <tr>
+            <td>${escapeHtml(searchValue)}</td>
+            <td>-</td>
+            <td colspan="5">Not Found</td>
+            <td><span class="badge notfound">Not Found</span></td>
+            <td>-</td>
+          </tr>
+        `;
+      }
+    }
+
+    results.innerHTML = `
+      <div class="stats">
+        Found ${totalFound} total result(s) for ${searchValues.length} searched value(s)
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Searched Value</th>
+            <th>Created</th>
+            <th>Reference</th>
+            <th>Location</th>
+            <th>Work Order</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Photos</th>
+            <th>Latest Comment</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+
+  } catch (error) {
+    console.error(error);
+    results.innerHTML = `<div class="loading">Error: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const savedToken = sessionStorage.getItem("snapfixBearerToken");
+
+  if (savedToken) {
+    SNAPFIX_TOKEN = savedToken;
+  }
+
+  updateTokenStatus();
+
+  document.getElementById("bearerToken").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      saveBearerToken();
+    }
+  });
+});
+</script>
+</body>
+</html>
