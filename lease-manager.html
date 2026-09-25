@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lease Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#F1F2EF; --surface:#FFFFFF; --ink:#1C2620; --muted:#6B7568;
+  --line:#DEDFD8; --accent:#2F5D50; --accent-ink:#FFFFFF;
+  --warn:#B8863B; --warn-bg:#FBF1DE;
+  --crit:#A63B2E; --crit-bg:#FAE7E3;
+  --ok-bg:#E8F0EA;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#171A17; --surface:#20241F; --ink:#EDEFE9; --muted:#9AA294;
+    --line:#333831; --accent:#5E9884; --accent-ink:#0E140F;
+    --warn:#D9A75C; --warn-bg:#3A2F17; --crit:#E17563; --crit-bg:#3A211C; --ok-bg:#1E2B21;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#171A17; --surface:#20241F; --ink:#EDEFE9; --muted:#9AA294;
+  --line:#333831; --accent:#5E9884; --accent-ink:#0E140F;
+  --warn:#D9A75C; --warn-bg:#3A2F17; --crit:#E17563; --crit-bg:#3A211C; --ok-bg:#1E2B21;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:'Public Sans',system-ui,sans-serif;font-size:14px;line-height:1.5}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer}
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;flex:none;background:var(--surface);border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{font-weight:700;font-size:18px;letter-spacing:-.01em}
+.brand span{display:block;font-weight:400;font-size:12px;color:var(--muted);margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{text-align:left;background:none;border:none;padding:9px 10px;border-radius:8px;color:var(--ink);font-weight:500}
+.nav button.active{background:var(--accent);color:var(--accent-ink)}
+.nav button:not(.active):hover{background:var(--bg)}
+.side-stats{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.side-stats b{display:block;color:var(--ink);font-size:20px;font-weight:700}
+main{flex:1;min-width:0;padding:24px 28px 60px}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card .n{font-size:26px;font-weight:700}
+.card .l{color:var(--muted);font-size:12.5px;margin-top:2px}
+.card.crit .n{color:var(--crit)}
+.card.warn .n{color:var(--warn)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:20px}
+.panel-h{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.toolbar input[type=text],.toolbar select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:0}
+.toolbar input[type=text]{flex:1;min-width:160px}
+.btn{padding:8px 13px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-weight:500}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.ghost{background:none}
+.btn:hover{filter:brightness(0.97)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;cursor:pointer;user-select:none}
+tbody tr:hover{background:var(--bg)}
+tbody tr{cursor:pointer}
+.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600}
+.pill.ok{background:var(--ok-bg);color:var(--accent)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.crit{background:var(--crit-bg);color:var(--crit)}
+.pill.flag{background:var(--crit-bg);color:var(--crit)}
+.pill.vac{background:var(--line);color:var(--muted)}
+.empty{padding:50px 20px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);margin-bottom:6px;font-size:16px}
+.modal-bg{position:fixed;inset:0;background:rgba(20,20,18,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:50}
+.modal{background:var(--surface);border-radius:14px;max-width:640px;width:100%;padding:24px}
+.modal h2{margin:0 0 2px;font-size:18px}
+.modal .sub{margin-bottom:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.field textarea{min-height:70px;resize:vertical}
+.modal-actions{display:flex;justify-content:space-between;gap:10px;margin-top:18px;flex-wrap:wrap}
+.modal-actions .right{display:flex;gap:8px}
+.attach{font-size:12.5px;color:var(--muted);margin-top:2px}
+.dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:30px;text-align:center;color:var(--muted)}
+.dropzone.drag{border-color:var(--accent);color:var(--accent);background:var(--ok-bg)}
+.hint{font-size:12.5px;color:var(--muted);margin-top:8px}
+::-webkit-scrollbar{height:8px;width:8px}
+@media (max-width:760px){
+  .app{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:row;overflow-x:auto;align-items:center}
+  .side-stats{display:none}
+  .nav{flex-direction:row}
+  main{padding:16px}
+  .grid2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="brand">Lease Manager<span>St. Nicks Alliance</span></div>
+    <div class="nav">
+      <button data-view="dashboard" class="active">Dashboard</button>
+      <button data-view="leases">All Leases</button>
+      <button data-view="watchlist">Watchlist</button>
+      <button data-view="import">Import / Export</button>
+    </div>
+    <div class="side-stats" id="sideStats"></div>
+  </div>
+  <main id="main"></main>
+</div>
+
+<script>
+const STORE_KEY = 'lease_manager_records_v1';
+let records = [];
+let view = 'dashboard';
+let sortKey = 'endDate', sortDir = 1;
+let search = '', statusFilter = 'all', urgencyFilter = 'all';
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    records = raw ? JSON.parse(raw) : [];
+  }catch(e){ records = []; }
+}
+function save(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(records)); }catch(e){ console.error('save failed', e); }
+}
+
+function parseDate(s){
+  if(!s) return null;
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+function fmtDate(s){
+  const d = parseDate(s);
+  if(!d) return '—';
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+function fmtMoney(n){
+  n = parseFloat(n);
+  if(isNaN(n)) return '—';
+  return '$' + n.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+function daysUntil(s){
+  const d = parseDate(s);
+  if(!d) return null;
+  return Math.round((d - new Date()) / 86400000);
+}
+function urgency(rec){
+  if(rec.status === 'vacated') return 'vac';
+  const du = daysUntil(rec.endDate);
+  if(du === null) return 'ok';
+  if(du < 0) return 'crit';
+  if(du <= 60) return 'crit';
+  if(du <= 120) return 'warn';
+  return 'ok';
+}
+function urgencyLabel(rec){
+  if(rec.status==='vacated') return 'Vacated';
+  const du = daysUntil(rec.endDate);
+  if(du===null) return 'No end date';
+  if(du<0) return `Expired ${Math.abs(du)}d ago`;
+  return `${du}d left`;
+}
+
+function genId(){ return 'r_' + Math.random().toString(36).slice(2,10); }
+
+// ---------- Excel Import ----------
+const COLS = ['touchpointId','responseId','touchpointName','subjectType','subjectName','subjectId','site','program','responseDate','recordedBy','attachFile','dateAcquired','dateSigned','securityDeposit','rentAmount','leaseType','beginDate','endDate','expectedRenewal','dateDeleased','depositRefunded','dateDepositRefunded','dateExpectedRenewal','requestNewLease','dateRequestNewLease','renewalReceived','renewalComments'];
+
+function importWorkbook(wb){
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+  let headerRow = 0;
+  for(let i=0;i<rows.length;i++){
+    if(rows[i].some(c => String(c).trim() === 'TouchPoint Identifier')){ headerRow = i; break; }
+  }
+  const imported = [];
+  let current = null;
+  for(let i=headerRow+1;i<rows.length;i++){
+    const row = rows[i];
+    if(!row || row.every(c => String(c).trim()==='')) continue;
+    const rec = {};
+    COLS.forEach((k,idx) => rec[k] = (row[idx] ?? '').toString().trim());
+    if(rec.touchpointId){
+      current = {
+        id: genId(),
+        touchpointId: rec.touchpointId,
+        propertyName: rec.subjectName,
+        subjectId: rec.subjectId,
+        site: rec.site,
+        program: rec.program,
+        recordedBy: rec.recordedBy,
+        leaseType: rec.leaseType,
+        securityDeposit: rec.securityDeposit,
+        rentAmount: rec.rentAmount,
+        beginDate: rec.beginDate,
+        endDate: rec.endDate,
+        dateAcquired: rec.dateAcquired,
+        dateSigned: rec.dateSigned,
+        expectedRenewal: rec.expectedRenewal,
+        dateDeleased: rec.dateDeleased,
+        renewalComments: rec.renewalComments,
+        attachments: rec.attachFile ? [rec.attachFile] : [],
+        status: rec.dateDeleased ? 'vacated' : 'active',
+        flagReason: '',
+        flagNotes: ''
+      };
+      imported.push(current);
+    } else if(rec.attachFile && current){
+      current.attachments.push(rec.attachFile);
+    }
+  }
+  return imported;
+}
+
+// ---------- Rendering ----------
+function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstChild; }
+
+function renderSideStats(){
+  const active = records.filter(r=>r.status!=='vacated');
+  const total = active.reduce((s,r)=> s + (parseFloat(r.rentAmount)||0), 0);
+  document.getElementById('sideStats').innerHTML = `
+    <b>${records.length}</b> leases loaded<br><br>
+    <b>${fmtMoney(total)}</b> total monthly rent`;
+}
+
+function renderNav(){
+  document.querySelectorAll('.nav button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.view === view);
+    b.onclick = () => { view = b.dataset.view; render(); };
+  });
+}
+
+function render(){
+  renderNav();
+  renderSideStats();
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  if(view==='dashboard') main.appendChild(renderDashboard());
+  else if(view==='leases') main.appendChild(renderTable('leases'));
+  else if(view==='watchlist') main.appendChild(renderTable('watchlist'));
+  else if(view==='import') main.appendChild(renderImport());
+}
+
+function renderDashboard(){
+  const wrap = el('<div></div>');
+  const active = records.filter(r=>r.status==='active');
+  const crit = active.filter(r=>urgency(r)==='crit').length;
+  const warn = active.filter(r=>urgency(r)==='warn').length;
+  const flagged = records.filter(r=>r.status==='flagged').length;
+  const totalRent = active.reduce((s,r)=> s + (parseFloat(r.rentAmount)||0), 0);
+
+  wrap.appendChild(el(`<h1>Dashboard</h1>`));
+  wrap.appendChild(el(`<p class="sub">Overview of ${records.length} leases across your portfolio.</p>`));
+  const cards = el('<div class="cards"></div>');
+  cards.appendChild(el(`<div class="card crit"><div class="n">${crit}</div><div class="l">Expiring within 60 days / expired</div></div>`));
+  cards.appendChild(el(`<div class="card warn"><div class="n">${warn}</div><div class="l">Expiring in 61–120 days</div></div>`));
+  cards.appendChild(el(`<div class="card"><div class="n">${flagged}</div><div class="l">Flagged on watchlist</div></div>`));
+  cards.appendChild(el(`<div class="card"><div class="n">${fmtMoney(totalRent)}</div><div class="l">Total active monthly rent</div></div>`));
+  wrap.appendChild(cards);
+
+  const upcoming = active.filter(r=>urgency(r)==='crit'||urgency(r)==='warn')
+    .sort((a,b)=> (daysUntil(a.endDate)??9e9) - (daysUntil(b.endDate)??9e9)).slice(0,10);
+  const panel = el(`<div class="panel"><div class="panel-h">Leases needing attention</div></div>`);
+  if(upcoming.length===0){
+    panel.appendChild(el(`<div class="empty"><b>Nothing urgent</b>No leases are expiring in the next 120 days.</div>`));
+  } else {
+    const tw = el('<div class="tablewrap"></div>');
+    const tbl = el('<table><thead><tr><th>Property</th><th>Apartment / Site</th><th>Rent</th><th>Lease ends</th><th>Status</th></tr></thead><tbody></tbody></table>');
+    const tbody = tbl.querySelector('tbody');
+    upcoming.forEach(r=>{
+      const tr = el(`<tr><td>${escapeHtml(r.propertyName||'—')}</td><td>${escapeHtml(r.site||'—')}</td><td>${fmtMoney(r.rentAmount)}</td><td>${fmtDate(r.endDate)}</td><td><span class="pill ${urgency(r)}">${urgencyLabel(r)}</span></td></tr>`);
+      tr.onclick = () => openModal(r.id);
+      tbody.appendChild(tr);
+    });
+    tw.appendChild(tbl);
+    panel.appendChild(tw);
+  }
+  wrap.appendChild(panel);
+  return wrap;
+}
+
+function filteredSorted(list){
+  let out = list.filter(r=>{
+    if(search){
+      const s = search.toLowerCase();
+      if(!(r.propertyName||'').toLowerCase().includes(s) && !(r.site||'').toLowerCase().includes(s)) return false;
+    }
+    if(statusFilter!=='all' && r.status!==statusFilter) return false;
+    if(urgencyFilter!=='all' && urgency(r)!==urgencyFilter) return false;
+    return true;
+  });
+  out.sort((a,b)=>{
+    let av, bv;
+    if(sortKey==='endDate'){ av = daysUntil(a.endDate) ?? 9e9; bv = daysUntil(b.endDate) ?? 9e9; }
+    else if(sortKey==='rentAmount'){ av = parseFloat(a.rentAmount)||0; bv = parseFloat(b.rentAmount)||0; }
+    else { av = (a[sortKey]||'').toString().toLowerCase(); bv = (b[sortKey]||'').toString().toLowerCase(); }
+    if(av<bv) return -1*sortDir; if(av>bv) return 1*sortDir; return 0;
+  });
+  return out;
+}
+
+function renderTable(mode){
+  const wrap = el('<div></div>');
+  wrap.appendChild(el(`<h1>${mode==='watchlist' ? 'Watchlist' : 'All Leases'}</h1>`));
+  wrap.appendChild(el(`<p class="sub">${mode==='watchlist' ? 'Apartments flagged to stop paying rent on, with reasons.' : `${records.length} leases in your portfolio.`}</p>`));
+
+  const panel = el('<div class="panel"></div>');
+  const toolbar = el('<div class="toolbar"></div>');
+  const searchInput = el(`<input type="text" placeholder="Search property or apartment…" value="${escapeAttr(search)}">`);
+  searchInput.oninput = e => { search = e.target.value; renderList(); };
+  toolbar.appendChild(searchInput);
+
+  if(mode==='leases'){
+    const statusSel = el(`<select>
+      <option value="all">All statuses</option>
+      <option value="active">Active</option>
+      <option value="flagged">Flagged</option>
+      <option value="vacated">Vacated</option>
+    </select>`);
+    statusSel.value = statusFilter;
+    statusSel.onchange = e => { statusFilter = e.target.value; renderList(); };
+    toolbar.appendChild(statusSel);
+
+    const urgSel = el(`<select>
+      <option value="all">Any urgency</option>
+      <option value="crit">Expiring soon / expired</option>
+      <option value="warn">Expiring in 2–4 months</option>
+      <option value="ok">Not urgent</option>
+    </select>`);
+    urgSel.value = urgencyFilter;
+    urgSel.onchange = e => { urgencyFilter = e.target.value; renderList(); };
+    toolbar.appendChild(urgSel);
+  }
+  const addBtn = el(`<button class="btn primary">+ Add lease</button>`);
+  addBtn.onclick = () => openModal(null);
+  toolbar.appendChild(addBtn);
+  panel.appendChild(toolbar);
+
+  const body = el('<div></div>');
+  panel.appendChild(body);
+  wrap.appendChild(panel);
+
+  function renderList(){
+    body.innerHTML = '';
+    let list = mode==='watchlist' ? records.filter(r=>r.status==='flagged') : records;
+    list = filteredSorted(list);
+    if(list.length===0){
+      body.appendChild(el(`<div class="empty"><b>${records.length===0?'No leases yet':'No matches'}</b>${records.length===0?'Import an Excel file or add a lease to get started.':'Try a different search or filter.'}</div>`));
+      return;
+    }
+    const tw = el('<div class="tablewrap"></div>');
+    const headers = mode==='watchlist'
+      ? [['propertyName','Property'],['site','Apartment'],['rentAmount','Rent'],['flagReason','Reason'],['','Notes']]
+      : [['propertyName','Property'],['site','Apartment'],['rentAmount','Rent'],['endDate','Lease ends'],['','Status']];
+    const tbl = el('<table><thead><tr></tr></thead><tbody></tbody></table>');
+    const trh = tbl.querySelector('tr');
+    headers.forEach(([key,label])=>{
+      const th = el(`<th>${label}</th>`);
+      if(key){ th.onclick = () => { sortDir = sortKey===key ? -sortDir : 1; sortKey = key; renderList(); }; }
+      trh.appendChild(th);
+    });
+    const tbody = tbl.querySelector('tbody');
+    list.forEach(r=>{
+      let tr;
+      if(mode==='watchlist'){
+        tr = el(`<tr><td>${escapeHtml(r.propertyName||'—')}</td><td>${escapeHtml(r.site||'—')}</td><td>${fmtMoney(r.rentAmount)}</td><td>${reasonLabel(r.flagReason)}</td><td>${escapeHtml((r.flagNotes||'').slice(0,60))}</td></tr>`);
+      } else {
+        tr = el(`<tr><td>${escapeHtml(r.propertyName||'—')}</td><td>${escapeHtml(r.site||'—')}</td><td>${fmtMoney(r.rentAmount)}</td><td>${fmtDate(r.endDate)}</td><td><span class="pill ${r.status==='flagged'?'flag':urgency(r)}">${r.status==='flagged'?'Flagged':urgencyLabel(r)}</span></td></tr>`);
+      }
+      tr.onclick = () => openModal(r.id);
+      tbody.appendChild(tr);
+    });
+    tw.appendChild(tbl);
+    body.appendChild(tw);
+  }
+  renderList();
+  return wrap;
+}
+
+function reasonLabel(k){
+  return {management:'Management uncooperative', landlord:'Landlord uncooperative', conditions:'Poor living conditions', other:'Other'}[k] || '—';
+}
+
+function renderImport(){
+  const wrap = el('<div></div>');
+  wrap.appendChild(el(`<h1>Import / Export</h1>`));
+  wrap.appendChild(el(`<p class="sub">Import your lease export from Excel, or export your current data.</p>`));
+
+  const panel = el(`<div class="panel"><div class="panel-h">Import Excel (.xlsx)</div></div>`);
+  const body = el('<div style="padding:16px"></div>');
+  const dz = el(`<div class="dropzone">Drag your Excel file here, or click to choose one<br><input type="file" accept=".xlsx,.xls" style="display:none"></div>`);
+  const fileInput = dz.querySelector('input');
+  dz.onclick = () => fileInput.click();
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('drag'); };
+  dz.ondragleave = () => dz.classList.remove('drag');
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('drag'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); };
+  fileInput.onchange = e => { if(e.target.files[0]) handleFile(e.target.files[0]); };
+  body.appendChild(dz);
+  const status = el(`<div class="hint" id="importStatus"></div>`);
+  body.appendChild(status);
+  panel.appendChild(body);
+  wrap.appendChild(panel);
+
+  function handleFile(file){
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try{
+        const wb = XLSX.read(ev.target.result, {type:'array'});
+        const imported = importWorkbook(wb);
+        records = records.concat(imported);
+        save();
+        status.textContent = `Imported ${imported.length} leases. Total now ${records.length}.`;
+        renderSideStats();
+      }catch(err){
+        status.textContent = 'Could not read that file. Make sure it matches your usual export format.';
+        console.error(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  const panel2 = el(`<div class="panel"><div class="panel-h">Export</div></div>`);
+  const body2 = el('<div style="padding:16px;display:flex;gap:10px;flex-wrap:wrap"></div>');
+  const exportBtn = el(`<button class="btn primary">Export all leases (CSV)</button>`);
+  exportBtn.onclick = exportCsv;
+  const clearBtn = el(`<button class="btn">Clear all data</button>`);
+  clearBtn.onclick = () => { if(confirm('This removes every lease from this app. Continue?')){ records = []; save(); render(); } };
+  body2.appendChild(exportBtn); body2.appendChild(clearBtn);
+  panel2.appendChild(body2);
+  wrap.appendChild(panel2);
+
+  return wrap;
+}
+
+function exportCsv(){
+  const headers = ['Property','Apartment/Site','Rent Amount','Lease Begin','Lease End','Status','Flag Reason','Flag Notes'];
+  const rows = records.map(r => [r.propertyName,r.site,r.rentAmount,r.beginDate,r.endDate,r.status,reasonLabel(r.flagReason),r.flagNotes]);
+  const csv = [headers, ...rows].map(row => row.map(c => `"${(c??'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'leases_export.csv';
+  a.click();
+}
+
+// ---------- Modal ----------
+function openModal(id){
+  const rec = id ? records.find(r=>r.id===id) : {id:genId(), propertyName:'', site:'', rentAmount:'', beginDate:'', endDate:'', status:'active', flagReason:'', flagNotes:'', attachments:[]};
+  const isNew = !id;
+  const bg = el('<div class="modal-bg"></div>');
+  const modal = el('<div class="modal"></div>');
+  modal.innerHTML = `
+    <h2>${isNew ? 'Add lease' : escapeHtml(rec.propertyName||'Lease details')}</h2>
+    <div class="sub">${escapeHtml(rec.site||'')}</div>
+    <div class="grid2">
+      <div class="field"><label>Property / LLC name</label><input id="f_propertyName" value="${escapeAttr(rec.propertyName)}"></div>
+      <div class="field"><label>Apartment / Site</label><input id="f_site" value="${escapeAttr(rec.site)}"></div>
+      <div class="field"><label>Rent amount ($/mo)</label><input id="f_rentAmount" type="number" value="${escapeAttr(rec.rentAmount)}"></div>
+      <div class="field"><label>Security deposit</label><input id="f_securityDeposit" type="number" value="${escapeAttr(rec.securityDeposit||'')}"></div>
+      <div class="field"><label>Lease begins</label><input id="f_beginDate" type="date" value="${toInputDate(rec.beginDate)}"></div>
+      <div class="field"><label>Lease ends</label><input id="f_endDate" type="date" value="${toInputDate(rec.endDate)}"></div>
+    </div>
+    <div class="field"><label>Status</label>
+      <select id="f_status">
+        <option value="active">Active</option>
+        <option value="flagged">Flagged — considering not renewing</option>
+        <option value="vacated">Vacated</option>
+      </select>
+    </div>
+    <div id="flagFields"></div>
+    ${rec.attachments && rec.attachments.length ? `<div class="field"><label>Attachments on file</label><div class="attach">${rec.attachments.map(escapeHtml).join(', ')}</div></div>` : ''}
+    <div class="modal-actions">
+      <div>${!isNew ? '<button class="btn" id="deleteBtn">Delete</button>' : ''}</div>
+      <div class="right">
+        <button class="btn ghost" id="cancelBtn">Cancel</button>
+        <button class="btn primary" id="saveBtn">${isNew ? 'Add lease' : 'Save changes'}</button>
+      </div>
+    </div>`;
+  bg.appendChild(modal);
+  document.body.appendChild(bg);
+
+  const statusSel = modal.querySelector('#f_status');
+  statusSel.value = rec.status;
+  const flagFields = modal.querySelector('#flagFields');
+  function renderFlagFields(){
+    flagFields.innerHTML = '';
+    if(statusSel.value==='flagged'){
+      flagFields.appendChild(el(`
+        <div class="field"><label>Reason</label>
+          <select id="f_flagReason">
+            <option value="management">Property management uncooperative</option>
+            <option value="landlord">Landlord uncooperative</option>
+            <option value="conditions">Poor living conditions</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field"><label>Notes</label><textarea id="f_flagNotes">${escapeHtml(rec.flagNotes||'')}</textarea></div>`));
+      flagFields.querySelector('#f_flagReason').value = rec.flagReason || 'management';
+    }
+  }
+  statusSel.onchange = renderFlagFields;
+  renderFlagFields();
+
+  bg.onclick = e => { if(e.target===bg) document.body.removeChild(bg); };
+  modal.querySelector('#cancelBtn').onclick = () => document.body.removeChild(bg);
+  if(!isNew){
+    modal.querySelector('#deleteBtn').onclick = () => {
+      if(confirm('Delete this lease record?')){
+        records = records.filter(r=>r.id!==rec.id);
+        save(); document.body.removeChild(bg); render();
+      }
+    };
+  }
+  modal.querySelector('#saveBtn').onclick = () => {
+    rec.propertyName = modal.querySelector('#f_propertyName').value;
+    rec.site = modal.querySelector('#f_site').value;
+    rec.rentAmount = modal.querySelector('#f_rentAmount').value;
+    rec.securityDeposit = modal.querySelector('#f_securityDeposit').value;
+    rec.beginDate = modal.querySelector('#f_beginDate').value;
+    rec.endDate = modal.querySelector('#f_endDate').value;
+    rec.status = statusSel.value;
+    if(rec.status==='flagged'){
+      rec.flagReason = modal.querySelector('#f_flagReason').value;
+      rec.flagNotes = modal.querySelector('#f_flagNotes').value;
+    } else { rec.flagReason=''; rec.flagNotes=''; }
+    if(isNew) records.push(rec);
+    save();
+    document.body.removeChild(bg);
+    render();
+  };
+}
+
+function toInputDate(s){
+  const d = parseDate(s);
+  if(!d) return '';
+  return d.toISOString().slice(0,10);
+}
+function escapeHtml(s){ return (s??'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
+load();
+render();
+</script>
+</body>
+</html>
