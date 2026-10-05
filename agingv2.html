@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Snapfix Work Order Dispatcher</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6f8; padding: 24px; color: #111827; }
+    .container { max-width: 1700px; margin: auto; }
+    h1 { margin-bottom: 4px; }
+    .subtitle { color: #6b7280; margin-bottom: 20px; }
+    .card { background: white; padding: 18px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); margin-bottom: 18px; }
+    .controls { display: grid; grid-template-columns: repeat(6, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+    label { display: block; font-size: 12px; font-weight: bold; color: #4b5563; margin-bottom: 5px; }
+    input, select, textarea { width: 100%; padding: 9px 10px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 8px; background: white; }
+    textarea { min-height: 82px; resize: vertical; font-family: Consolas, monospace; font-size: 12px; }
+    .token-row { display:grid; grid-template-columns: 1fr auto auto; gap:10px; align-items:end; }
+    .token-status { margin-top:8px; font-size:12px; color:#6b7280; }
+    .token-status.ok { color:#15803d; }
+    .token-status.error { color:#b91c1c; }
+    button.danger { background:#b91c1c; }
+    button { background: #111827; color: white; border: none; border-radius: 8px; padding: 11px 16px; cursor: pointer; font-size: 14px; }
+    button.secondary { background: #2563eb; }
+    .stats { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .stat { background: white; border-radius: 10px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .stat .value { font-size: 24px; font-weight: bold; margin-top: 4px; }
+    .stat .label { color: #6b7280; font-size: 12px; }
+    .grid-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1750px; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    th { background: #111827; color: white; padding: 12px; text-align: left; }
+    td { border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; vertical-align: top; padding: 10px; min-width: 235px; }
+    td.worker { min-width: 130px; max-width: 130px; font-weight: bold; background: #f9fafb; }
+    .ticket { border: 1px solid #d1d5db; border-left: 5px solid #9ca3af; border-radius: 9px; padding: 9px; margin-bottom: 8px; background: #fff; }
+    .ticket.red { border-left-color: #dc2626; background: #fef2f2; }
+    .ticket.amber { border-left-color: #d97706; background: #fffbeb; }
+    .ticket .top { display: flex; justify-content: space-between; gap: 8px; font-weight: bold; font-size: 12px; margin-bottom: 5px; }
+    .ticket .title { font-size: 12px; line-height: 1.35; margin-bottom: 5px; }
+    .ticket .meta { font-size: 11px; color: #6b7280; line-height: 1.35; }
+    .badge { display: inline-block; font-size: 10px; padding: 3px 7px; border-radius: 999px; font-weight: bold; margin-top: 5px; }
+    .badge.oldest { background: #fee2e2; color: #991b1b; }
+    .badge.newer { background: #dbeafe; color: #1d4ed8; }
+    .badge.neighbor { background: #dcfce7; color: #166534; }
+    .badge.range { background: #ede9fe; color: #5b21b6; margin-left: 4px; }
+    .worker-ranges { font-size: 10px; font-weight: normal; color: #6b7280; line-height: 1.35; margin-top: 5px; }
+    .ticket-actions { margin-top: 8px; display: flex; gap: 6px; }
+    .ticket-actions button { padding: 6px 9px; font-size: 11px; border-radius: 6px; }
+    .range-grid { display:grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap:10px; margin-top:12px; }
+    .range-item { border:1px solid #e5e7eb; border-radius:8px; padding:9px; background:#f9fafb; font-size:12px; }
+    .range-item strong { display:block; margin-bottom:3px; }
+    .oversight-note { margin-top:10px; font-size:12px; color:#4b5563; }
+    .loading { padding: 14px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 15px; }
+    .empty { color: #9ca3af; font-size: 12px; text-align: center; padding: 20px 5px; }
+    @media (max-width: 1100px) {
+      .controls { grid-template-columns: repeat(2, 1fr); }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Snapfix Operations Control Center theme */
+    body { margin:0; padding:0; background:#eef2f6; color:#172033; font-family:Inter,Arial,sans-serif; }
+    body::before { content:""; display:block; height:5px; background:#2563eb; }
+    .container { max-width:none; margin:0 auto; padding:0 24px 32px; }
+    h1 { margin:0; color:white; font-size:24px; letter-spacing:-.3px; }
+    .container > h1 { background:#0f1d32; margin:0 -24px; padding:22px 24px 3px; }
+    .subtitle { background:#0f1d32; color:#9fb0c7; margin:0 -24px 22px; padding:4px 24px 22px; }
+    .card { border:1px solid #dce3ec; box-shadow:0 3px 12px rgba(15,29,50,.06); border-radius:10px; }
+    button { background:#16243a; font-weight:700; transition:.15s ease; }
+    button:hover { transform:translateY(-1px); filter:brightness(1.08); }
+    button.secondary { background:#2563eb; }
+    input,select,textarea { border-color:#cbd5e1; }
+    .token-status.ok::before { content:"● "; }
+    .stats { grid-template-columns:repeat(5,minmax(150px,1fr)); }
+    .stat { border:1px solid #dce3ec; box-shadow:none; border-top:3px solid #2563eb; }
+    .stat .value { color:#172033; }
+    table { box-shadow:0 4px 18px rgba(15,29,50,.08); border:1px solid #d8e0ea; }
+    th { background:#16243a; position:sticky; top:0; z-index:3; text-transform:uppercase; font-size:11px; letter-spacing:.5px; }
+    td.worker { background:#f1f5f9; color:#172033; position:sticky; left:0; z-index:2; border-left:3px solid #2563eb; }
+    .ticket { box-shadow:0 1px 3px rgba(15,29,50,.06); }
+    .ticket.red { background:#fff; border-left-color:#dc2626; }
+    .ticket.amber { background:#fff; border-left-color:#d97706; }
+    .ticket .top span:first-child { color:#172033; }
+    .badge { letter-spacing:.2px; }
+    .range-item { background:#f8fafc; border-left:3px solid #64748b; }
+    .grid-wrap { border-radius:10px; }
+  </style>
+
+<style>
+/* eWorks Online-inspired light CMMS theme */
+:root{--ew-navy:#082a4a;--ew-cyan:#16b9e8;--ew-bg:#f6f8fb;--ew-border:#e4e9ef;--ew-text:#263445;--ew-muted:#788696;--ew-green:#5bcaa5;--ew-yellow:#f6c75c;--ew-red:#f28c8c;--ew-purple:#a88be8}
+body{background:var(--ew-bg)!important;color:var(--ew-text)!important;font-family:Inter,Arial,sans-serif!important;padding:0!important}
+.container{max-width:none!important;margin:0!important;padding:0 24px 32px 94px!important}
+.ops-header,.app-header,header{background:#fff!important;color:var(--ew-text)!important;border-bottom:1px solid var(--ew-border)!important;box-shadow:0 1px 4px rgba(8,42,74,.06)!important}
+.container>h1{margin:0 -24px 0 -94px!important;padding:22px 32px 6px 118px!important;background:#fff!important;color:var(--ew-navy)!important;font-size:22px!important}
+.subtitle{margin:0 -24px 22px -94px!important;padding:0 32px 18px 118px!important;background:#fff!important;color:var(--ew-muted)!important;border-bottom:1px solid var(--ew-border)!important}
+body:before{content:'eW';position:fixed;z-index:9999;left:0;top:0;width:70px;height:100vh;background:var(--ew-navy);color:white;font-size:21px;font-weight:800;text-align:center;padding-top:24px;box-sizing:border-box;box-shadow:2px 0 8px rgba(0,0,0,.08)}
+.card,.stat{border:1px solid var(--ew-border)!important;border-radius:10px!important;box-shadow:0 2px 8px rgba(8,42,74,.05)!important;background:#fff!important}
+.controls{gap:14px!important}
+label{color:#6f7d8b!important;font-size:11px!important;text-transform:uppercase;letter-spacing:.04em}
+input,select,textarea{border:1px solid #dce3ea!important;border-radius:6px!important;background:#fff!important;color:var(--ew-text)!important}
+button{background:var(--ew-cyan)!important;border-radius:6px!important;font-weight:700!important;box-shadow:none!important}
+button.secondary{background:var(--ew-cyan)!important}
+button.danger{background:#ef7676!important}
+.stats{gap:12px!important}
+.stat .value{color:var(--ew-navy)!important;font-size:22px!important}
+.stat .label{color:var(--ew-muted)!important;text-transform:uppercase!important;font-size:10px!important;letter-spacing:.04em}
+table{border-radius:8px!important;box-shadow:0 2px 10px rgba(8,42,74,.06)!important;border:1px solid var(--ew-border)!important}
+th{background:var(--ew-navy)!important;color:#fff!important;font-size:11px!important;text-transform:uppercase!important;letter-spacing:.035em!important;padding:11px!important}
+td{border-color:#e8edf2!important;background:#fff!important}
+td.worker{background:#f9fbfd!important;color:var(--ew-navy)!important}
+.ticket{border:1px solid #e1e7ed!important;border-left:4px solid #aeb8c2!important;border-radius:7px!important;box-shadow:0 1px 3px rgba(8,42,74,.04)!important;background:#fff!important}
+.ticket.red{border-left-color:#ef6b6b!important;background:#fff!important}
+.ticket.amber{border-left-color:#f1b84b!important;background:#fff!important}
+.ticket .top{color:var(--ew-navy)!important}
+.ticket .meta{color:var(--ew-muted)!important}
+.badge{border-radius:4px!important;text-transform:uppercase!important;font-size:9px!important;letter-spacing:.03em!important}
+.badge.oldest{background:#fff0f0!important;color:#d85b5b!important}
+.badge.newer{background:#e9f8fd!important;color:#1499c3!important}
+.badge.neighbor{background:#e8f8f2!important;color:#269b79!important}
+.loading{border:1px solid var(--ew-border)!important;box-shadow:none!important}
+.empty{color:#a0abb6!important}
+.copy-all-btn,.copy-btn{background:var(--ew-cyan)!important}
+@media(max-width:900px){.container{padding-left:82px!important}.container>h1,.subtitle{margin-left:-82px!important;padding-left:98px!important}}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>SNAPFIX OPERATIONS</h1>
+  <div class="subtitle">Maintenance Command Center · Weekly Work Order Dispatch</div>
+
+  <div class="card">
+    <div class="token-row">
+      <div>
+        <label>Snapfix Bearer Token</label>
+        <textarea id="tokenInput" placeholder="Paste your bearer token here. You can include or omit the word Bearer."></textarea>
+      </div>
+      <button type="button" class="secondary" onclick="saveToken()">Save Token</button>
+      <button type="button" class="danger" onclick="clearToken()">Clear Token</button>
+    </div>
+    <div id="tokenStatus" class="token-status">No token saved for this browser session.</div>
+  </div>
+
+  <div class="card">
+    <div class="controls">
+      <div>
+        <label>Old Tickets / Worker</label>
+        <select id="oldPerWorker"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
+      </div>
+      <div>
+        <label>Newer Tickets / Worker</label>
+        <select id="newPerWorker"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
+      </div>
+      <div>
+        <label>Old Ticket Threshold (days)</label>
+        <input id="oldThreshold" type="number" value="30" min="1">
+      </div>
+      <div>
+        <label>Neighbor Search</label>
+        <select id="neighborMode">
+          <option value="off">Off</option>
+          <option value="address" selected>Same street / block</option>
+          <option value="geo">Coordinates if available</option>
+        </select>
+      </div>
+      <div>
+        <label>Neighbor Radius (miles)</label>
+        <input id="neighborRadius" type="number" value="0.35" min="0.05" step="0.05">
+      </div>
+      <div>
+        <button onclick="loadAndDispatch()">Load & Build Week</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>Task Number Assignment Ranges</strong>
+    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Tickets are assigned by the configured SN ranges. Use the numeric task number when replacing a ticket.</div>
+    <div id="rangeSummary" class="range-grid"></div>
+    <div class="oversight-note"><strong>Oversight:</strong> Wilford oversees 1515 Contract SN1-SN150 and SN701-SN770. Marvin oversees SN151-SN320 and SN771-SN835.</div>
+  </div>
+
+  <div id="loading"></div>
+  <div id="stats"></div>
+
+  <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    <div>
+      <strong>WEEKLY DISPATCH BOARD</strong>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px;">
+        Oldest tickets first, then newer tickets, then one optional neighboring ticket.
+      </div>
+    </div>
+    <button class="secondary" onclick="redispatchCurrent()">Redispatch</button>
+  </div>
+
+  <div id="board" class="grid-wrap"></div>
+</div>
+
+<script>
+const TOKEN_STORAGE_KEY = "snapfixBearerToken";
+const PARENT_UUID = "33c9bb00-81bc-4313-9fe1-c2f0a68b2e7f";
+
+function normalizeBearerToken(value) {
+  const token = String(value || "").trim();
+  if (!token) return "";
+  return /^Bearer\s+/i.test(token) ? token : `Bearer ${token}`;
+}
+
+function getSavedToken() {
+  return sessionStorage.getItem(TOKEN_STORAGE_KEY) || "";
+}
+
+function getCommonHeaders() {
+  const token = getSavedToken();
+  if (!token) {
+    throw new Error("No bearer token saved. Paste a Snapfix bearer token above and click Save Token.");
+  }
+  return {
+    "accept": "application/json, text/plain, */*",
+    "authorization": token,
+    "content-type": "application/json",
+    "parent-uuid": PARENT_UUID
+  };
+}
+
+function updateTokenStatus(message, type = "") {
+  const status = document.getElementById("tokenStatus");
+  status.textContent = message;
+  status.className = `token-status ${type}`.trim();
+}
+
+function saveToken() {
+  const input = document.getElementById("tokenInput");
+  const token = normalizeBearerToken(input.value);
+  if (!token || token === "Bearer") {
+    updateTokenStatus("Paste a valid bearer token before saving.", "error");
+    return;
+  }
+  sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  input.value = "";
+  updateTokenStatus("Bearer token saved for this browser session.", "ok");
+}
+
+function clearToken() {
+  sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  document.getElementById("tokenInput").value = "";
+  updateTokenStatus("Bearer token cleared.");
+}
+
+function initializeTokenUi() {
+  if (getSavedToken()) {
+    updateTokenStatus("A bearer token is saved for this browser session.", "ok");
+  }
+}
+
+const WORKER_RANGES = {
+  "Domingo":   [{ contract: "1515", min: 901, max: 966 }],
+  "Efrain":    [{ contract: "317", min: 218, max: 262 }, { contract: "142", min: 813, max: 835 }],
+  "Jostyn":    [{ contract: "317", min: 83, max: 150 }],
+  "Lloyd":     [{ contract: "317", min: 263, max: 320 }],
+  "Nathaniel": [{ contract: "317", min: 1, max: 59 }, { contract: "1515", min: 967, max: 975 }],
+  "Stefan":    [{ contract: "317", min: 60, max: 82 }, { contract: "142", min: 701, max: 745 }],
+  "Tommy":     [{ contract: "142", min: 746, max: 812 }],
+  "Victor":    [{ contract: "317", min: 151, max: 217 }]
+};
+
+const WORKERS = Object.keys(WORKER_RANGES);
+
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+let loadedTickets = [];
+let currentSchedule = null;
+
+function buildSearchUrl(limit = 100, offset = 1) {
+  return `https://z4.snapfix.com/v1/app/tasks/list-by-parent?parentUuid=${PARENT_UUID}&limit=${limit}&offset=${offset}&sortBy=lastActivity&orderBy=desc`;
+}
+
+async function fetchStatusPage(color, offset = 1, limit = 100) {
+  const response = await fetch(buildSearchUrl(limit, offset), {
+    method: "POST",
+    headers: getCommonHeaders(),
+    body: JSON.stringify({
+      searchText: "SN",
+      normalTasks: 1,
+      colors: [color]
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error("Snapfix request failed", {
+      status: response.status,
+      color,
+      offset,
+      response: text
+    });
+    throw new Error(`${response.status} - ${text}`);
+  }
+
+  const data = await response.json();
+  return data?.data?.jobs || [];
+}
+
+async function fetchAllOpenTickets() {
+  const all = [];
+
+  for (const color of ["red", "amber"]) {
+    let offset = 1;
+
+    while (true) {
+      const jobs = await fetchStatusPage(color, offset, 100);
+
+      jobs.forEach(job => all.push({ ...job, dispatcherColor: color }));
+
+      if (jobs.length < 100) break;
+      offset += 1;
+      if (offset > 50) break;
+    }
+  }
+
+  const seen = new Set();
+
+  return all.filter(ticket => {
+    const key = ticket.uuid || `${ticket.reference}-${ticket.createdTs}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getCreatedDate(ticket) {
+  const d = new Date(Number(ticket.createdTs));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function ageInDays(ticket) {
+  const created = getCreatedDate(ticket);
+  if (!created) return 0;
+  return Math.floor((Date.now() - created.getTime()) / 86400000);
+}
+
+function formatDate(ticket) {
+  const d = getCreatedDate(ticket);
+  return d ? d.toLocaleDateString("en-US", { month:"short", day:"2-digit", year:"numeric" }) : "-";
+}
+
+function clean(v) { return v || "-"; }
+
+function ticketText(ticket) {
+  return [ticket.title, ticket.largeTitle, ticket.description].filter(Boolean).join(" ");
+}
+
+function normalizeAddress(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/\b(avenue|ave\.)\b/g, "ave")
+    .replace(/\b(street|st\.)\b/g, "st")
+    .replace(/\b(road|rd\.)\b/g, "rd")
+    .replace(/\b(boulevard|blvd\.)\b/g, "blvd")
+    .replace(/\b(place|pl\.)\b/g, "pl")
+    .replace(/\b(apartment|apt|unit)\s*[a-z0-9-]*/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function addressRegionKey(ticket) {
+  const text = normalizeAddress(ticketText(ticket));
+  const match = text.match(/\b(\d{2,5})\s+([a-z0-9 ]+?\b(?:st|ave|rd|blvd|pl))\b/);
+
+  if (!match) return text.split(" ").slice(0, 4).join(" ");
+
+  const houseNumber = Number(match[1]);
+  const block = Math.floor(houseNumber / 100) * 100;
+  return `${block} ${match[2].trim()}`;
+}
+
+function getLatLng(ticket) {
+  const lat = Number(ticket.latitude ?? ticket.lat ?? ticket.location?.latitude ?? ticket.location?.lat);
+  const lng = Number(ticket.longitude ?? ticket.lng ?? ticket.lon ?? ticket.location?.longitude ?? ticket.location?.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+function milesBetween(a, b) {
+  const R = 3958.8;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+
+  const h = Math.sin(dLat/2)**2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
+
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function areNeighbors(a, b, mode, radius) {
+  if (mode === "off") return false;
+
+  if (mode === "geo") {
+    const p1 = getLatLng(a);
+    const p2 = getLatLng(b);
+    if (p1 && p2) return milesBetween(p1, p2) <= radius;
+  }
+
+  return addressRegionKey(a) === addressRegionKey(b);
+}
+
+function getTaskNumber(ticket) {
+  const values = [ticket.reference, ticket.title, ticket.largeTitle, ticket.description];
+  for (const value of values) {
+    const match = String(value || "").match(/\bSN\s*[-#:]?\s*(\d{1,4})\b/i);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+function getTicketKey(ticket) {
+  return ticket.uuid || `${ticket.reference || ""}-${ticket.createdTs || ""}`;
+}
+
+function getWorkerRangeMatch(worker, ticket) {
+  const taskNumber = getTaskNumber(ticket);
+  if (!Number.isFinite(taskNumber)) return null;
+  return (WORKER_RANGES[worker] || []).find(range => taskNumber >= range.min && taskNumber <= range.max) || null;
+}
+
+function isTicketEligibleForWorker(worker, ticket) {
+  return Boolean(getWorkerRangeMatch(worker, ticket));
+}
+
+function formatWorkerRanges(worker) {
+  return (WORKER_RANGES[worker] || [])
+    .map(range => `${range.contract}: SN${range.min}-SN${range.max}`)
+    .join(" | ");
+}
+
+function renderRangeSummary() {
+  document.getElementById("rangeSummary").innerHTML = WORKERS.map(worker => `
+    <div class="range-item"><strong>${worker}</strong>${formatWorkerRanges(worker)}</div>
+  `).join("");
+}
+
+function emptySchedule() {
+  const schedule = {};
+  WORKERS.forEach(worker => {
+    schedule[worker] = {};
+    DAYS.forEach(day => schedule[worker][day] = []);
+  });
+  return schedule;
+}
+
+function workerTickets(schedule, worker) {
+  return DAYS.flatMap(day => schedule[worker][day]);
+}
+
+function leastLoadedDay(schedule, worker) {
+  return [...DAYS].sort((a,b) => schedule[worker][a].length - schedule[worker][b].length)[0];
+}
+
+function assign(schedule, worker, ticket, allocationType) {
+  const day = leastLoadedDay(schedule, worker);
+  schedule[worker][day].push({ ...ticket, allocationType });
+}
+
+function dispatchTickets(tickets) {
+  const oldPerWorker = Number(document.getElementById("oldPerWorker").value);
+  const newPerWorker = Number(document.getElementById("newPerWorker").value);
+  const threshold = Number(document.getElementById("oldThreshold").value);
+  const neighborMode = document.getElementById("neighborMode").value;
+  const radius = Number(document.getElementById("neighborRadius").value);
+
+  const schedule = emptySchedule();
+  const used = new Set();
+
+  const oldestFirst = [...tickets].sort((a,b) =>
+    (getCreatedDate(a)?.getTime() || 0) - (getCreatedDate(b)?.getTime() || 0)
+  );
+
+  const oldPool = oldestFirst.filter(t => ageInDays(t) >= threshold);
+  const newerPool = oldestFirst
+    .filter(t => ageInDays(t) < threshold)
+    .sort((a,b) => (getCreatedDate(b)?.getTime() || 0) - (getCreatedDate(a)?.getTime() || 0));
+
+  function nextEligible(pool, worker) {
+    return pool.find(ticket => !used.has(getTicketKey(ticket)) && isTicketEligibleForWorker(worker, ticket));
+  }
+
+  for (let round = 0; round < oldPerWorker; round++) {
+    for (const worker of WORKERS) {
+      const ticket = nextEligible(oldPool, worker);
+      if (!ticket) continue;
+      used.add(getTicketKey(ticket));
+      assign(schedule, worker, ticket, "oldest");
+    }
+  }
+
+  for (let round = 0; round < newPerWorker; round++) {
+    for (const worker of WORKERS) {
+      const ticket = nextEligible(newerPool, worker);
+      if (!ticket) continue;
+      used.add(getTicketKey(ticket));
+      assign(schedule, worker, ticket, "newer");
+    }
+  }
+
+  if (neighborMode !== "off") {
+    for (const worker of WORKERS) {
+      let neighborAdded = false;
+
+      // A nearby add-on must be placed in the SAME day column as
+      // the ticket that made it qualify as nearby.
+      for (const day of DAYS) {
+        const sameDayTickets = schedule[worker][day];
+        if (!sameDayTickets.length) continue;
+
+        const candidates = oldestFirst.filter(ticket =>
+          !used.has(getTicketKey(ticket)) && isTicketEligibleForWorker(worker, ticket)
+        );
+
+        let neighbor = null;
+        for (const anchorTicket of sameDayTickets) {
+          neighbor = candidates.find(candidate =>
+            areNeighbors(anchorTicket, candidate, neighborMode, radius)
+          );
+          if (neighbor) break;
+        }
+
+        if (neighbor) {
+          used.add(getTicketKey(neighbor));
+          schedule[worker][day].push({ ...neighbor, allocationType: "neighbor" });
+          neighborAdded = true;
+          break;
+        }
+      }
+
+      if (neighborAdded) continue;
+    }
+  }
+
+  const remaining = oldestFirst.filter(t => !used.has(getTicketKey(t)));
+  return { schedule, remaining };
+}
+
+function isTicketAssigned(ticketKey) {
+  if (!currentSchedule) return false;
+  return WORKERS.some(worker => DAYS.some(day =>
+    currentSchedule.schedule[worker][day].some(ticket => getTicketKey(ticket) === ticketKey)
+  ));
+}
+
+function replaceAssignedTicket(worker, day, currentTicketKey) {
+  if (!currentSchedule) return;
+
+  const entered = prompt(`Enter the replacement task number for ${worker} on ${day} (example: 218):`);
+  if (entered === null) return;
+
+  const match = String(entered).trim().match(/^\d{1,4}$/);
+  if (!match) {
+    alert("Enter the numeric task number only, such as 218.");
+    return;
+  }
+
+  const requestedNumber = Number(match[1]);
+  const replacement = loadedTickets.find(ticket => getTaskNumber(ticket) === requestedNumber);
+
+  if (!replacement) {
+    alert(`Task #${requestedNumber} was not found in the currently loaded red/yellow tickets.`);
+    return;
+  }
+
+  if (!isTicketEligibleForWorker(worker, replacement)) {
+    alert(`Task #${requestedNumber} is outside ${worker}'s assigned range: ${formatWorkerRanges(worker)}.`);
+    return;
+  }
+
+  const replacementKey = getTicketKey(replacement);
+  if (replacementKey === currentTicketKey) {
+    alert(`Task #${requestedNumber} is already assigned in this slot.`);
+    return;
+  }
+
+  if (isTicketAssigned(replacementKey)) {
+    alert(`Task #${requestedNumber} is already assigned elsewhere on the board.`);
+    return;
+  }
+
+  const dayTickets = currentSchedule.schedule[worker][day];
+  const index = dayTickets.findIndex(ticket => getTicketKey(ticket) === currentTicketKey);
+  if (index < 0) return;
+
+  const oldTicket = dayTickets[index];
+  const allocationType = oldTicket.allocationType || "newer";
+  dayTickets[index] = { ...replacement, allocationType };
+
+  const oldKey = getTicketKey(oldTicket);
+  currentSchedule.remaining = currentSchedule.remaining
+    .filter(ticket => getTicketKey(ticket) !== replacementKey);
+
+  if (!currentSchedule.remaining.some(ticket => getTicketKey(ticket) === oldKey)) {
+    currentSchedule.remaining.push(oldTicket);
+  }
+
+  renderStats(currentSchedule);
+  renderBoard(currentSchedule);
+}
+
+function renderTicket(ticket, worker, day) {
+  const badge =
+    ticket.allocationType === "oldest"
+      ? '<span class="badge oldest">Oldest Priority</span>'
+      : ticket.allocationType === "newer"
+      ? '<span class="badge newer">Newer Ticket</span>'
+      : '<span class="badge neighbor">Nearby Add-on</span>';
+
+  const range = getWorkerRangeMatch(worker, ticket);
+  const rangeBadge = range
+    ? `<span class="badge range">${range.contract} Contract · SN${range.min}-SN${range.max}</span>`
+    : '';
+  const key = getTicketKey(ticket).replace(/'/g, "\\'");
+
+  return `
+    <div class="ticket ${ticket.dispatcherColor === "amber" ? "amber" : "red"}">
+      <div class="top">
+        <span>${clean(ticket.reference)}</span>
+        <span>${ageInDays(ticket)}d</span>
+      </div>
+      <div class="title">${clean(ticket.largeTitle || ticket.title)}</div>
+      <div class="meta">
+        Created: ${formatDate(ticket)}<br>
+        Status: ${ticket.dispatcherColor === "red" ? "Red" : "Yellow"}<br>
+        Task #: ${getTaskNumber(ticket) ?? "Not detected"}<br>
+        Region: ${clean(addressRegionKey(ticket))}
+      </div>
+      ${badge}${rangeBadge}
+      <div class="ticket-actions">
+        <button type="button" class="secondary" onclick="replaceAssignedTicket('${worker}', '${day}', '${key}')">Replace Ticket</button>
+      </div>
+    </div>
+  `;
+}
+
+function getAssignedTaskNumbers(schedule, worker) {
+  return DAYS.flatMap(day => schedule[worker][day])
+    .map(ticket => String(ticket.reference || "").trim())
+    .filter(Boolean);
+}
+
+async function copyAssignedTaskNumbers(worker) {
+  if (!currentSchedule) return;
+  const numbers = getAssignedTaskNumbers(currentSchedule.schedule, worker);
+  if (!numbers.length) {
+    alert(`No task numbers are currently assigned to ${worker}.`);
+    return;
+  }
+
+  const text = numbers.join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    alert(`Copied ${numbers.length} task number${numbers.length === 1 ? "" : "s"} for ${worker}.`);
+  } catch (error) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+    alert(`Copied ${numbers.length} task number${numbers.length === 1 ? "" : "s"} for ${worker}.`);
+  }
+}
+
+function renderAssignedTaskNumbers(schedule, worker) {
+  const numbers = getAssignedTaskNumbers(schedule, worker);
+  if (!numbers.length) return '<div class="empty">No tasks assigned</div>';
+
+  return `
+    <div style="min-width:150px;">
+      <div style="font-family:Consolas,monospace;font-size:13px;line-height:1.65;font-weight:bold;white-space:pre-line;">${numbers.join("<br>")}</div>
+      <button type="button" class="secondary" style="margin-top:10px;width:100%;padding:8px 10px;" onclick="copyAssignedTaskNumbers('${worker}')">Copy All</button>
+    </div>
+  `;
+}
+
+function renderBoard(result) {
+  let html = `<table><thead><tr><th>Maintenance Worker</th>${DAYS.map(d => `<th>${d}</th>`).join("")}<th>Assigned Task Numbers</th></tr></thead><tbody>`;
+
+  for (const worker of WORKERS) {
+    html += `<tr><td class="worker">${worker}<div class="worker-ranges">${formatWorkerRanges(worker)}</div></td>`;
+
+    for (const day of DAYS) {
+      const tickets = result.schedule[worker][day];
+      html += `<td>${tickets.length ? tickets.map(ticket => renderTicket(ticket, worker, day)).join("") : '<div class="empty">No tickets assigned</div>'}</td>`;
+    }
+
+    html += `<td>${renderAssignedTaskNumbers(result.schedule, worker)}</td>`;
+    html += `</tr>`;
+  }
+
+  html += `</tbody></table>`;
+  document.getElementById("board").innerHTML = html;
+}
+
+function renderStats(result) {
+  const assigned = WORKERS.flatMap(w => workerTickets(result.schedule, w));
+
+  document.getElementById("stats").innerHTML = `
+    <div class="stats">
+      <div class="stat"><div class="label">Open Red / Yellow</div><div class="value">${loadedTickets.length}</div></div>
+      <div class="stat"><div class="label">Assigned This Week</div><div class="value">${assigned.length}</div></div>
+      <div class="stat"><div class="label">Old Priority</div><div class="value">${assigned.filter(t => t.allocationType === "oldest").length}</div></div>
+      <div class="stat"><div class="label">Newer Tickets</div><div class="value">${assigned.filter(t => t.allocationType === "newer").length}</div></div>
+      <div class="stat"><div class="label">Nearby Add-ons</div><div class="value">${assigned.filter(t => t.allocationType === "neighbor").length}</div></div>
+    </div>
+  `;
+}
+
+async function loadAndDispatch() {
+  const loading = document.getElementById("loading");
+  loading.innerHTML = '<div class="loading">Loading red and yellow Snapfix tickets...</div>';
+
+  try {
+    loadedTickets = await fetchAllOpenTickets();
+
+    if (!loadedTickets.length) {
+      loading.innerHTML = '<div class="loading">No open red/yellow tickets found.</div>';
+      return;
+    }
+
+    currentSchedule = dispatchTickets(loadedTickets);
+    loading.innerHTML = "";
+    renderStats(currentSchedule);
+    renderBoard(currentSchedule);
+  } catch (error) {
+    console.error(error);
+    loading.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+  }
+}
+
+initializeTokenUi();
+renderRangeSummary();
+
+function redispatchCurrent() {
+  if (!loadedTickets.length) {
+    alert("Load Snapfix tickets first.");
+    return;
+  }
+
+  currentSchedule = dispatchTickets(loadedTickets);
+  renderStats(currentSchedule);
+  renderBoard(currentSchedule);
+}
+</script>
+</body>
+</html>
